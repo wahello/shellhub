@@ -23,4 +23,5 @@ type Store interface {
 	LicenseStore
 	StatsStore
 	BillingStore
+	TokenStore
 }
