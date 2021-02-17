@@ -20,4 +20,9 @@ type NamespaceStore interface {
 	NamespaceGetFirst(ctx context.Context, ID string) (*models.Namespace, error)
 	NamespaceSetSessionRecord(ctx context.Context, sessionRecord bool, tenantID string) error
 	NamespaceGetSessionRecord(ctx context.Context, tenantID string) (bool, error)
+	NamespaceListToken(ctx context.Context, tenantID string) ([]models.Token, error)
+	NamespaceCreateToken(ctx context.Context, tenantID string) (*models.Token, error)
+	NamespaceGetToken(ctx context.Context, tenantID string, ID string) (*models.Token, error)
+	NamespaceDeleteToken(ctx context.Context, tenantID string, ID string) error
+	NamespaceUpdateToken(ctx context.Context, tenantID string, ID string, token *models.APITokenUpdate) error
 }

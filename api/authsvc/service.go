@@ -21,6 +21,8 @@ import (
 	"github.com/shellhub-io/shellhub/api/store"
 	"github.com/shellhub-io/shellhub/pkg/clock"
 	"github.com/shellhub-io/shellhub/pkg/models"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/go-playground/validator.v9"
 )
 
@@ -33,6 +35,7 @@ type Service interface {
 	AuthPublicKey(ctx context.Context, req *models.PublicKeyAuthRequest) (*models.PublicKeyAuthResponse, error)
 	AuthSwapToken(ctx context.Context, ID, tenant string) (*models.UserAuthResponse, error)
 	AuthUserInfo(ctx context.Context, username, tenant, token string) (*models.UserAuthResponse, error)
+	AuthAPIToken(ctx context.Context, req *models.APITokenAuthRequest) (*models.APITokenAuthResponse, error)
 	PublicKey() *rsa.PublicKey
 }
 
@@ -310,6 +313,40 @@ func (s *service) AuthUserInfo(ctx context.Context, username, tenant, token stri
 		Tenant: tenant,
 		ID:     user.ID,
 		Email:  user.Email,
+func (s *service) AuthAPIToken(ctx context.Context, req *models.APITokenAuthRequest) (*models.APITokenAuthResponse, error) {
+	namespace, err := s.store.GetNamespace(ctx, req.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(namespace.Name), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	hasher := sha256.New()
+	if _, err := hasher.Write(hash); err != nil {
+		return nil, err
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, models.APITokenAuthClaims{
+		ID:       hex.EncodeToString(hasher.Sum(nil)),
+		TenantID: req.TenantID,
+		AuthClaims: models.AuthClaims{
+			Claims: "apiToken",
+		},
+	})
+
+	tokenStr, err := token.SignedString(s.privKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.APITokenAuthResponse{
+		ID:       hex.EncodeToString(hasher.Sum(nil)),
+		APIToken: tokenStr,
+		TenantID: req.TenantID,
+		ReadOnly: true,
 	}, nil
 }
 

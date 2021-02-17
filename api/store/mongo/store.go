@@ -2,6 +2,8 @@ package mongo
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 
 	"github.com/shellhub-io/shellhub/api/apicontext"

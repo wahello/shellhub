@@ -268,3 +268,104 @@ func (s *Store) NamespaceGetSessionRecord(ctx context.Context, tenantID string) 
 
 	return settings.Settings.SessionRecord, nil
 }
+
+func (s *Store) NamespaceListAPIToken(ctx context.Context, tenantID string) ([]models.Token, error) {
+	ns := new(models.Namespace)
+
+	if err := s.db.Collection("namespaces").FindOne(ctx, bson.M{"tenant_id": tenantID}).Decode(&ns); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, store.ErrNamespaceNoDocuments
+		}
+		return nil, err
+	}
+
+	return ns.APITokens, nil
+}
+
+func (s *Store) NamespaceCreateAPIToken(ctx context.Context, tenantID string) (*models.Token, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(tenantID), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	hasher := md5.New()
+	if _, err := hasher.Write(hash); err != nil {
+		return nil, err
+	}
+
+	token := &models.Token{
+		ID:       hex.EncodeToString(hasher.Sum(nil)),
+		TenantID: tenantID,
+		ReadOnly: true,
+	}
+
+	_, err = s.db.Collection("namespaces").UpdateOne(ctx, bson.M{"tenant_id": tenantID}, bson.M{"$push": bson.M{"api_tokens": token}})
+	if err != nil {
+		return nil, err
+	}
+
+	return token, nil
+}
+
+func (s *Store) NamespaceGetAPIToken(ctx context.Context, tenantID string, ID string) (*models.Token, error) {
+	tokens, err := s.ListAPIToken(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, token := range tokens {
+		if token.ID == ID {
+			return &token, nil
+		}
+	}
+
+	return nil, store.ErrRecordNotFound
+}
+
+func (s *Store) NamespaceDeleteAPIToken(ctx context.Context, tenantID string, ID string) error {
+	tokens, err := s.ListAPIToken(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+
+	for id, token := range tokens {
+		if token.ID == ID {
+			tokens = append(tokens[:id], tokens[id+1:]...)
+		}
+	}
+
+	_, err = s.db.Collection("namespaces").UpdateOne(ctx, bson.M{"tenant_id": tenantID}, bson.M{"$set": bson.M{"api_tokens": tokens}})
+	if err != nil {
+		return err
+	}
+
+	if err == mongo.ErrNoDocuments {
+		return store.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+func (s *Store) NamespaceUpdateAPIToken(ctx context.Context, tenantID string, ID string, request *models.APITokenUpdate) error {
+	tokens, err := s.ListAPIToken(ctx, tenantID)
+	if err != nil {
+		return nil
+	}
+
+	for id, token := range tokens {
+		if token.ID == ID {
+			tokens[id].ReadOnly = request.TokenFields.ReadOnly
+		}
+	}
+
+	_, err = s.db.Collection("namespaces").UpdateOne(ctx, bson.M{"tenant_id": tenantID}, bson.M{"$set": bson.M{"api_tokens": tokens}})
+	if err != nil {
+		return err
+	}
+
+	if err == mongo.ErrNoDocuments {
+		return store.ErrRecordNotFound
+	}
+
+	return nil
+}

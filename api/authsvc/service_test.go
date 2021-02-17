@@ -118,15 +118,6 @@ func TestAuthUser(t *testing.T) {
 }
 
 func TestAuthUserInfo(t *testing.T) {
-	mock := &mocks.Store{}
-
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	assert.NoError(t, err)
-
-	s := NewService(store.Store(mock), privateKey, &privateKey.PublicKey)
-
-	ctx := context.TODO()
-
 	authRes1 := &models.UserAuthResponse{
 		Name:   "user",
 		Token:  "---------------token----------------",
@@ -193,6 +184,30 @@ func TestAuthUserInfo(t *testing.T) {
 	authRes, err = s.AuthUserInfo(ctx, "user", namespace.TenantID, "---------------token----------------")
 	assert.Nil(t, err)
 	assert.Equal(t, authRes2, authRes)
+}
+
+func TestAuthAPIToken(t *testing.T) {
+	mock := &mocks.Store{}
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	assert.NoError(t, err)
+
+	s := NewService(store.Store(mock), privateKey, &privateKey.PublicKey)
+
+	ctx := context.TODO()
+
+	authReq := &models.APITokenAuthRequest{
+		TenantID: "tenant",
+	}
+
+	namespace := &models.Namespace{Name: "group1", Owner: "hash1", TenantID: "tenant", APITokens: []models.Token{}}
+	mock.On("GetNamespace", ctx, namespace.TenantID).Return(namespace, nil).Once()
+
+	authRes, err := s.AuthAPIToken(ctx, authReq)
+	assert.NoError(t, err)
+
+	assert.Equal(t, namespace.TenantID, authRes.TenantID)
+	assert.NotEmpty(t, authRes.APIToken)
 
 	mock.AssertExpectations(t)
 }
