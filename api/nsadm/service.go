@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -54,7 +55,11 @@ func (s *service) ListNamespaces(ctx context.Context, pagination paginator.Query
 		return nil, 0, err
 	}
 
-	return s.store.ListNamespaces(ctx, pagination, filter, export)
+	fmt.Println("MERDA2x")
+
+	list, value, err2 := s.store.ListNamespaces(ctx, pagination, filter, export)
+	fmt.Println(err2)
+	return list, value, err2
 }
 
 func (s *service) CreateNamespace(ctx context.Context, namespace *models.Namespace, ownerUsername string) (*models.Namespace, error) {

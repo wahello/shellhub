@@ -38,6 +38,7 @@ func AuthRequest(c apicontext.Context) error {
 		// Extract tenant and username from JWT
 		c.Response().Header().Set("X-Tenant-ID", claims.Tenant)
 		c.Response().Header().Set("X-Username", claims.Username)
+		c.Response().Header().Set("X-Authentication-Type", "user")
 		c.Response().Header().Set("X-ID", claims.ID)
 
 		return nil
