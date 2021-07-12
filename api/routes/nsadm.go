@@ -84,9 +84,19 @@ func CreateNamespace(c apicontext.Context) error {
 func GetNamespace(c apicontext.Context) error {
 	svc := nsadm.NewService(c.Store())
 
-	namespace, err := svc.GetNamespace(c.Ctx(), c.Param("id"))
+	id := ""
+	if v := c.ID(); v != nil {
+		id = v.ID
+	}
+
+	namespace, err := svc.GetNamespace(c.Ctx(), c.Param("id"), id)
 	if err != nil {
-		return err
+		switch err {
+		case nsadm.ErrUnauthorized:
+			return c.NoContent(http.StatusForbidden)
+		default:
+			return err
+		}
 	}
 
 	members, err := svc.ListMembers(c.Ctx(), c.Param("id"))
@@ -259,11 +269,21 @@ func GetSessionRecord(c apicontext.Context) error {
 		tenant = v.ID
 	}
 
+	id := ""
+	if v := c.ID(); v != nil {
+		id = v.ID
+	}
+
 	svc := nsadm.NewService(c.Store())
 
-	status, err := svc.GetSessionRecord(c.Ctx(), tenant)
+	status, err := svc.GetSessionRecord(c.Ctx(), tenant, id)
 	if err != nil {
-		return err
+		switch err {
+		case nsadm.ErrUnauthorized:
+			return c.NoContent(http.StatusForbidden)
+		default:
+			return err
+		}
 	}
 
 	return c.JSON(http.StatusOK, status)

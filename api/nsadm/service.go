@@ -18,14 +18,14 @@ import (
 type Service interface {
 	ListNamespaces(ctx context.Context, pagination paginator.Query, filterB64 string, export bool) ([]models.Namespace, int, error)
 	CreateNamespace(ctx context.Context, namespace *models.Namespace, ownerUsername string) (*models.Namespace, error)
-	GetNamespace(ctx context.Context, tenantID string) (*models.Namespace, error)
+	GetNamespace(ctx context.Context, tenantID, memberID string) (*models.Namespace, error)
 	DeleteNamespace(ctx context.Context, tenantID, ownerUsername string) error
 	EditNamespace(ctx context.Context, tenantID, name, ownerUsername string) (*models.Namespace, error)
 	AddNamespaceUser(ctx context.Context, tenantID, username, ownerUsername string) (*models.Namespace, error)
 	RemoveNamespaceUser(ctx context.Context, tenantID, username, ownerUsername string) (*models.Namespace, error)
 	ListMembers(ctx context.Context, tenantID string) ([]models.Member, error)
 	EditSessionRecordStatus(ctx context.Context, status bool, tenant, ownerID string) error
-	GetSessionRecord(ctx context.Context, tenant string) (bool, error)
+	GetSessionRecord(ctx context.Context, tenant, memberID string) (bool, error)
 }
 
 type service struct {
@@ -102,7 +102,10 @@ func (s *service) CreateNamespace(ctx context.Context, namespace *models.Namespa
 	return ns, nil
 }
 
-func (s *service) GetNamespace(ctx context.Context, tenantID string) (*models.Namespace, error) {
+func (s *service) GetNamespace(ctx context.Context, tenantID, memberID string) (*models.Namespace, error) {
+	if err := utils.IsNamespaceMember(ctx, s.store, tenantID, memberID); err != nil {
+		return nil, ErrUnauthorized
+	}
 	return s.store.NamespaceGet(ctx, tenantID)
 }
 
@@ -208,7 +211,10 @@ func (s *service) EditSessionRecordStatus(ctx context.Context, sessionRecord boo
 	return s.store.NamespaceSetSessionRecord(ctx, sessionRecord, tenant)
 }
 
-func (s *service) GetSessionRecord(ctx context.Context, tenant string) (bool, error) {
+func (s *service) GetSessionRecord(ctx context.Context, tenant, memberID string) (bool, error) {
+	if err := utils.IsNamespaceMember(ctx, s.store, tenant, memberID); err != nil {
+		return false, ErrUnauthorized
+	}
 	if _, err := s.store.NamespaceGet(ctx, tenant); err != nil {
 		if err == store.ErrNoDocuments {
 			return false, ErrNamespaceNotFound

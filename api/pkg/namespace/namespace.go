@@ -11,7 +11,17 @@ var (
 	ErrUnauthorized      = errors.New("unauthorized")
 	ErrUserNotFound      = errors.New("user not found")
 	ErrNamespaceNotFound = errors.New("namespace not found")
+	ErrNotMember         = errors.New("user is not a member")
 )
+
+func contains(members []interface{}, user string) bool {
+	for _, member := range members {
+		if member.(string) == user {
+			return true
+		}
+	}
+	return false
+}
 
 func IsNamespaceOwner(ctx context.Context, s store.Store, tenantID, ownerID string) error {
 	user, _, err := s.UserGetByID(ctx, ownerID, false)
@@ -37,4 +47,17 @@ func IsNamespaceOwner(ctx context.Context, s store.Store, tenantID, ownerID stri
 	}
 
 	return nil
+}
+
+func IsNamespaceMember(ctx context.Context, s store.Store, tenantID, memberID string) error {
+	ns, err := s.NamespaceGet(ctx, tenantID)
+	if err == store.ErrNoDocuments {
+		return ErrNamespaceNotFound
+	}
+	if !contains(ns.Members, memberID) {
+		return ErrNotMember
+	}
+
+	return nil
+
 }
