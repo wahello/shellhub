@@ -11,7 +11,6 @@ var (
 	ErrUnauthorized      = errors.New("unauthorized")
 	ErrUserNotFound      = errors.New("user not found")
 	ErrNamespaceNotFound = errors.New("namespace not found")
-	ErrNotMember         = errors.New("user is not a member")
 )
 
 func contains(members []interface{}, user string) bool {
@@ -55,7 +54,7 @@ func IsNamespaceMember(ctx context.Context, s store.Store, tenantID, memberID st
 		return ErrNamespaceNotFound
 	}
 	if !contains(ns.Members, memberID) {
-		return ErrNotMember
+		return ErrUnauthorized
 	}
 
 	return nil
