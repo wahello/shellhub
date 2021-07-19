@@ -53,7 +53,17 @@ func GetDeviceList(c apicontext.Context) error {
 func GetDevice(c apicontext.Context) error {
 	svc := deviceadm.NewService(c.Store())
 
-	device, err := svc.GetDevice(c.Ctx(), models.UID(c.Param("uid")))
+	tenant := ""
+	if v := c.Tenant(); v != nil {
+		tenant = v.ID
+	}
+
+	id := ""
+	if v := c.ID(); v != nil {
+		id = v.ID
+	}
+
+	device, err := svc.GetDevice(c.Ctx(), models.UID(c.Param("uid")), tenant, id)
 	if err != nil {
 		return err
 	}

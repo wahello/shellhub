@@ -6,10 +6,10 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"regexp"
 
 	"github.com/shellhub-io/shellhub/api/apicontext"
+	utils "github.com/shellhub-io/shellhub/api/pkg/namespace"
 	"github.com/shellhub-io/shellhub/api/store"
 	"github.com/shellhub-io/shellhub/pkg/api/paginator"
 	"github.com/shellhub-io/shellhub/pkg/clock"
@@ -17,18 +17,13 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-var (
-	ErrInvalidFormat        = errors.New("invalid format")
-	ErrDuplicateFingerprint = errors.New("this fingerprint already exits")
-)
-
 type Service interface {
 	EvaluateKeyHostname(ctx context.Context, key *models.PublicKey, dev models.Device) (bool, error)
 	ListPublicKeys(ctx context.Context, pagination paginator.Query) ([]models.PublicKey, int, error)
 	GetPublicKey(ctx context.Context, fingerprint, tenant string) (*models.PublicKey, error)
-	CreatePublicKey(ctx context.Context, key *models.PublicKey) error
-	UpdatePublicKey(ctx context.Context, fingerprint, tenant string, key *models.PublicKeyUpdate) (*models.PublicKey, error)
-	DeletePublicKey(ctx context.Context, fingerprint, tenant string) error
+	CreatePublicKey(ctx context.Context, key *models.PublicKey, ownerID string) error
+	UpdatePublicKey(ctx context.Context, fingerprint, tenant, ownerID string, key *models.PublicKeyUpdate) (*models.PublicKey, error)
+	DeletePublicKey(ctx context.Context, fingerprint, tenant, ownerID string) error
 	CreatePrivateKey(ctx context.Context) (*models.PrivateKey, error)
 }
 
@@ -61,7 +56,11 @@ func (s *service) GetPublicKey(ctx context.Context, fingerprint, tenant string) 
 	return s.store.PublicKeyGet(ctx, fingerprint, tenant)
 }
 
-func (s *service) CreatePublicKey(ctx context.Context, key *models.PublicKey) error {
+func (s *service) CreatePublicKey(ctx context.Context, key *models.PublicKey, ownerID string) error {
+	if err := utils.IsNamespaceOwner(ctx, s.store, key.TenantID, ownerID); err != nil {
+		return err
+	}
+
 	key.CreatedAt = clock.Now()
 
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(key.Data) //nolint:dogsled
@@ -92,11 +91,14 @@ func (s *service) ListPublicKeys(ctx context.Context, pagination paginator.Query
 	return s.store.PublicKeyList(ctx, pagination)
 }
 
-func (s *service) UpdatePublicKey(ctx context.Context, fingerprint, tenant string, key *models.PublicKeyUpdate) (*models.PublicKey, error) {
+func (s *service) UpdatePublicKey(ctx context.Context, fingerprint, tenant, ownerID string, key *models.PublicKeyUpdate) (*models.PublicKey, error) {
+	if err := utils.IsNamespaceOwner(ctx, s.store, tenant, ownerID); err != nil {
+		return nil, err
+	}
 	return s.store.PublicKeyUpdate(ctx, fingerprint, tenant, key)
 }
 
-func (s *service) DeletePublicKey(ctx context.Context, fingerprint, tenant string) error {
+func (s *service) DeletePublicKey(ctx context.Context, fingerprint, tenant, ownerID string) error {
 	return s.store.PublicKeyDelete(ctx, fingerprint, tenant)
 }
 

@@ -3,6 +3,7 @@ package sessionmngr
 import (
 	"context"
 
+	utils "github.com/shellhub-io/shellhub/api/pkg/namespace"
 	"github.com/shellhub-io/shellhub/api/store"
 	"github.com/shellhub-io/shellhub/pkg/api/paginator"
 	"github.com/shellhub-io/shellhub/pkg/models"
@@ -10,7 +11,7 @@ import (
 
 type Service interface {
 	ListSessions(ctx context.Context, pagination paginator.Query) ([]models.Session, int, error)
-	GetSession(ctx context.Context, uid models.UID) (*models.Session, error)
+	GetSession(ctx context.Context, uid models.UID, tenant, memberID string) (*models.Session, error)
 	CreateSession(ctx context.Context, session models.Session) (*models.Session, error)
 	DeactivateSession(ctx context.Context, uid models.UID) error
 	SetSessionAuthenticated(ctx context.Context, uid models.UID, authenticated bool) error
@@ -28,7 +29,10 @@ func (s *service) ListSessions(ctx context.Context, pagination paginator.Query) 
 	return s.store.SessionList(ctx, pagination)
 }
 
-func (s *service) GetSession(ctx context.Context, uid models.UID) (*models.Session, error) {
+func (s *service) GetSession(ctx context.Context, uid models.UID, tenant, memberID string) (*models.Session, error) {
+	if err := utils.IsNamespaceMember(ctx, s.store, tenant, memberID); err != nil {
+		return nil, ErrUnauthorized
+	}
 	return s.store.SessionGet(ctx, uid)
 }
 

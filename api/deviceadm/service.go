@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	utils "github.com/shellhub-io/shellhub/api/pkg/namespace"
@@ -22,7 +23,7 @@ var (
 
 type Service interface {
 	ListDevices(ctx context.Context, pagination paginator.Query, filter string, status string, sort string, order string) ([]models.Device, int, error)
-	GetDevice(ctx context.Context, uid models.UID) (*models.Device, error)
+	GetDevice(ctx context.Context, uid models.UID, tenant, memberID string) (*models.Device, error)
 	DeleteDevice(ctx context.Context, uid models.UID, tenant, ownerID string) error
 	RenameDevice(ctx context.Context, uid models.UID, name, tenant, ownerID string) error
 	LookupDevice(ctx context.Context, namespace, name string) (*models.Device, error)
@@ -52,7 +53,11 @@ func (s *service) ListDevices(ctx context.Context, pagination paginator.Query, f
 	return s.store.DeviceList(ctx, pagination, filter, status, sort, order)
 }
 
-func (s *service) GetDevice(ctx context.Context, uid models.UID) (*models.Device, error) {
+func (s *service) GetDevice(ctx context.Context, uid models.UID, tenant, memberID string) (*models.Device, error) {
+	//if err := utils.IsNamespaceMember(ctx, s.store, tenant, memberID); err != nil {
+	//	return nil, ErrUnauthorized
+	//}
+
 	return s.store.DeviceGet(ctx, uid)
 }
 
@@ -72,6 +77,7 @@ func (s *service) RenameDevice(ctx context.Context, uid models.UID, name, tenant
 	if err := utils.IsNamespaceOwner(ctx, s.store, tenant, ownerID); err != nil {
 		return ErrUnauthorized
 	}
+	fmt.Println("TESTE TESTE TESTE")
 
 	device, err := s.store.DeviceGetByUID(ctx, uid, tenant)
 	if err != nil {

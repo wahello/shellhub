@@ -67,11 +67,16 @@ func CreatePublicKey(c apicontext.Context) error {
 		return err
 	}
 
+	id := ""
+	if v := c.ID(); v != nil {
+		id = v.ID
+	}
+
 	if tenant := c.Tenant(); tenant != nil {
 		key.TenantID = tenant.ID
 	}
 
-	if err := svc.CreatePublicKey(c.Ctx(), &key); err != nil {
+	if err := svc.CreatePublicKey(c.Ctx(), &key, id); err != nil {
 		if err == sshkeys.ErrInvalidFormat {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
@@ -93,12 +98,17 @@ func UpdatePublicKey(c apicontext.Context) error {
 		return err
 	}
 
+	id := ""
+	if v := c.ID(); v != nil {
+		id = v.ID
+	}
+
 	tenant := ""
 	if v := c.Tenant(); v != nil {
 		tenant = v.ID
 	}
 
-	key, err := svc.UpdatePublicKey(c.Ctx(), c.Param("fingerprint"), tenant, &params)
+	key, err := svc.UpdatePublicKey(c.Ctx(), c.Param("fingerprint"), tenant, id, &params)
 	if err != nil {
 		return err
 	}
@@ -109,12 +119,17 @@ func UpdatePublicKey(c apicontext.Context) error {
 func DeletePublicKey(c apicontext.Context) error {
 	svc := sshkeys.NewService(c.Store())
 
+	id := ""
+	if v := c.ID(); v != nil {
+		id = v.ID
+	}
+
 	tenant := ""
 	if v := c.Tenant(); v != nil {
 		tenant = v.ID
 	}
 
-	if err := svc.DeletePublicKey(c.Ctx(), c.Param("fingerprint"), tenant); err != nil {
+	if err := svc.DeletePublicKey(c.Ctx(), c.Param("fingerprint"), tenant, id); err != nil {
 		return err
 	}
 

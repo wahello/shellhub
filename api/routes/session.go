@@ -44,7 +44,17 @@ func GetSessionList(c apicontext.Context) error {
 func GetSession(c apicontext.Context) error {
 	svc := sessionmngr.NewService(c.Store())
 
-	session, err := svc.GetSession(c.Ctx(), models.UID(c.Param("uid")))
+	tenant := ""
+	if v := c.Tenant(); v != nil {
+		tenant = v.ID
+	}
+
+	id := ""
+	if v := c.ID(); v != nil {
+		id = v.ID
+	}
+
+	session, err := svc.GetSession(c.Ctx(), models.UID(c.Param("uid")), tenant, id)
 	if err != nil {
 		return err
 	}
