@@ -2,7 +2,6 @@ package mongo
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/shellhub-io/shellhub/api/apicontext"
 	"github.com/shellhub-io/shellhub/pkg/api/paginator"
@@ -118,7 +117,6 @@ func (s *Store) SessionGet(ctx context.Context, uid models.UID) (*models.Session
 
 	err = cursor.Decode(&session)
 	if err != nil {
-		fmt.Println("ERRO NO DECODE")
 		return nil, fromMongoError(err)
 	}
 

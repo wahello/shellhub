@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -329,11 +330,13 @@ func (s *Store) DeviceGetByName(ctx context.Context, name, tenant string) (*mode
 
 func (s *Store) DeviceGetByUID(ctx context.Context, uid models.UID, tenant string) (*models.Device, error) {
 	var device *models.Device
+	fmt.Println("DEVICE GET BY UID")
 	if err := s.cache.Get(ctx, strings.Join([]string{"device", string(uid)}, "/"), &device); err != nil {
 		logrus.Error(err)
 	}
 
 	if device != nil {
+		fmt.Println("DEVICE NOT NIL")
 		return device, nil
 	}
 

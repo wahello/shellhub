@@ -74,16 +74,21 @@ func (s *service) DeleteDevice(ctx context.Context, uid models.UID, tenant, owne
 }
 
 func (s *service) RenameDevice(ctx context.Context, uid models.UID, name, tenant, ownerID string) error {
+	fmt.Println("RENAME DEVICE")
+	if err := utils.IsNamespaceMember(ctx, s.store, tenant, ownerID); err != nil {
+		return ErrUnauthorized
+	}
+	fmt.Println("RENAME DEVICE 2")
 	if err := utils.IsNamespaceOwner(ctx, s.store, tenant, ownerID); err != nil {
 		return ErrUnauthorized
 	}
-	fmt.Println("TESTE TESTE TESTE")
 
+	fmt.Println("RENAME DEVICE3 ")
 	device, err := s.store.DeviceGetByUID(ctx, uid, tenant)
 	if err != nil {
 		return err
 	}
-
+	fmt.Println("RENAME DEVICE4 ")
 	updatedDevice := &models.Device{
 		UID:       device.UID,
 		Name:      strings.ToLower(name),
@@ -96,10 +101,12 @@ func (s *service) RenameDevice(ctx context.Context, uid models.UID, name, tenant
 		Namespace: device.Namespace,
 		Status:    device.Status,
 	}
+	fmt.Println("RENAME DEVICE 5")
 
 	if _, err = validator.ValidateStruct(updatedDevice); err != nil {
 		return err
 	}
+	fmt.Println("RENAME DEVICE6 ")
 
 	if device.Name == updatedDevice.Name {
 		return nil
