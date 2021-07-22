@@ -18,6 +18,9 @@ import (
 
 	"github.com/cnf/structhash"
 	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/go-redis/cache/v8"
+	"github.com/go-redis/redis/v8"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/shellhub-io/shellhub/api/store"
 	"github.com/shellhub-io/shellhub/pkg/models"
 	"gopkg.in/go-playground/validator.v9"
@@ -39,7 +42,14 @@ type service struct {
 	store   store.Store
 	privKey *rsa.PrivateKey
 	pubKey  *rsa.PublicKey
+	cache   *cache.Cache
 }
+
+type config struct {
+	RedisUri string `envconfig:"redis_uri" default:"redis://redis:6379"`
+}
+
+var myCache *cache.Cache
 
 func NewService(store store.Store, privKey *rsa.PrivateKey, pubKey *rsa.PublicKey) Service {
 	if privKey == nil || pubKey == nil {
@@ -49,12 +59,57 @@ func NewService(store store.Store, privKey *rsa.PrivateKey, pubKey *rsa.PublicKe
 			panic(err)
 		}
 	}
+	var cfg config
+	if err := envconfig.Process("api", &cfg); err != nil {
+		panic(err.Error())
+	}
 
-	return &service{store, privKey, pubKey}
+	opt, err := redis.ParseURL(cfg.RedisUri)
+	if err != nil {
+		panic(err)
+	}
+
+	if myCache == nil {
+		myCache = cache.New(&cache.Options{
+			Redis: redis.NewClient(opt),
+		})
+	}
+
+	return &service{store, privKey, pubKey, myCache}
 }
 
 func (s *service) AuthDevice(ctx context.Context, req *models.DeviceAuthRequest) (*models.DeviceAuthResponse, error) {
 	uid := sha256.Sum256(structhash.Dump(req.DeviceAuth, 1))
+	key := hex.EncodeToString(uid[:])
+
+	type Device struct {
+		Name      string
+		Namespace string
+	}
+
+	var value Device
+
+	if err := s.cache.Get(ctx, key, &value); err == nil {
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, models.DeviceAuthClaims{
+			UID: hex.EncodeToString(uid[:]),
+			AuthClaims: models.AuthClaims{
+				Claims: "device",
+			},
+		})
+
+		tokenStr, err := token.SignedString(s.privKey)
+		if err != nil {
+			return nil, err
+		}
+
+		return &models.DeviceAuthResponse{
+			UID:       hex.EncodeToString(uid[:]),
+			Token:     tokenStr,
+			Name:      value.Name,
+			Namespace: value.Namespace,
+		}, nil
+
+	}
 
 	device := models.Device{
 		UID:       hex.EncodeToString(uid[:]),
@@ -104,6 +159,15 @@ func (s *service) AuthDevice(ctx context.Context, req *models.DeviceAuthRequest)
 
 	namespace, err := s.store.NamespaceGet(ctx, device.TenantID)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := s.cache.Set(&cache.Item{
+		Ctx:   ctx,
+		Key:   key,
+		Value: &Device{Name: dev.Name, Namespace: namespace.Name},
+		TTL:   time.Second * 30,
+	}); err != nil {
 		return nil, err
 	}
 
