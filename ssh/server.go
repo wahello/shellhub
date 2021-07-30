@@ -60,6 +60,7 @@ func (s *Server) sessionHandler(session sshserver.Session) {
 	}).Info("Handling session request")
 
 	sess, err := NewSession(session.User(), session)
+	defer sess.finish() // nolint:errcheck
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"session": session.Context().Value(sshserver.ContextKeySessionID),
@@ -189,7 +190,7 @@ func (s *Server) sessionHandler(session sshserver.Session) {
 		}).Error("Failed to write")
 	}
 
-	sess.finish() // nolint:errcheck
+	//sess.finish() // nolint:errcheck
 }
 
 func (s *Server) publicKeyHandler(ctx sshserver.Context, pubKey sshserver.PublicKey) bool {
