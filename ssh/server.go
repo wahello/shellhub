@@ -59,7 +59,6 @@ func (s *Server) sessionHandler(session sshserver.Session) {
 		"session": session.Context().Value(sshserver.ContextKeySessionID),
 	}).Info("Handling session request")
 
-	sess, err := NewSession(session.User(), session)
 	defer sess.finish() // nolint:errcheck
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
@@ -126,6 +125,15 @@ func (s *Server) sessionHandler(session sshserver.Session) {
 		apiClient := client.NewClient()
 		key, err := apiClient.CreatePrivateKey()
 		if err != nil {
+			req, _ = http.NewRequest("DELETE", fmt.Sprintf("/ssh/close/%s", sess.UID), nil)
+			if err = req.Write(conn); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"err":     err,
+					"session": session.Context().Value(sshserver.ContextKeySessionID),
+				}).Error("Failed to write")
+			}
+
+			sess.finish() // nolint:errcheck
 			session.Close()
 
 			return
@@ -135,6 +143,15 @@ func (s *Server) sessionHandler(session sshserver.Session) {
 
 		privKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
+			req, _ = http.NewRequest("DELETE", fmt.Sprintf("/ssh/close/%s", sess.UID), nil)
+			if err = req.Write(conn); err != nil {
+				logrus.WithFields(logrus.Fields{
+					"err":     err,
+					"session": session.Context().Value(sshserver.ContextKeySessionID),
+				}).Error("Failed to write")
+			}
+
+			sess.finish() // nolint:errcheck
 			session.Close()
 
 			return
@@ -146,7 +163,15 @@ func (s *Server) sessionHandler(session sshserver.Session) {
 		logrus.WithFields(logrus.Fields{
 			"session": session.Context().Value(sshserver.ContextKeySessionID),
 		}).Error("Failed to get password from context")
+		req, _ = http.NewRequest("DELETE", fmt.Sprintf("/ssh/close/%s", sess.UID), nil)
+		if err = req.Write(conn); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"err":     err,
+				"session": session.Context().Value(sshserver.ContextKeySessionID),
+			}).Error("Failed to write")
+		}
 
+		sess.finish() // nolint:errcheck
 		session.Close()
 
 		return
@@ -159,7 +184,15 @@ func (s *Server) sessionHandler(session sshserver.Session) {
 			"err":     err,
 			"session": session.Context().Value(sshserver.ContextKeySessionID),
 		}).Error("Failed to write")
+		req, _ = http.NewRequest("DELETE", fmt.Sprintf("/ssh/close/%s", sess.UID), nil)
+		if err = req.Write(conn); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"err":     err,
+				"session": session.Context().Value(sshserver.ContextKeySessionID),
+			}).Error("Failed to write")
+		}
 
+		sess.finish() // nolint:errcheck
 		session.Close()
 
 		return
@@ -172,6 +205,15 @@ func (s *Server) sessionHandler(session sshserver.Session) {
 		}).Error("Failed to connect")
 
 		session.Write([]byte("Permission denied\n")) // nolint:errcheck
+		req, _ = http.NewRequest("DELETE", fmt.Sprintf("/ssh/close/%s", sess.UID), nil)
+		if err = req.Write(conn); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"err":     err,
+				"session": session.Context().Value(sshserver.ContextKeySessionID),
+			}).Error("Failed to write")
+		}
+
+		sess.finish() // nolint:errcheck
 		session.Close()
 
 		return
@@ -190,7 +232,7 @@ func (s *Server) sessionHandler(session sshserver.Session) {
 		}).Error("Failed to write")
 	}
 
-	//sess.finish() // nolint:errcheck
+	sess.finish() // nolint:errcheck
 }
 
 func (s *Server) publicKeyHandler(ctx sshserver.Context, pubKey sshserver.PublicKey) bool {
