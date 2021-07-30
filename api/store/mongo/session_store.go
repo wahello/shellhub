@@ -180,12 +180,11 @@ func (s *Store) SessionSetLastSeen(ctx context.Context, uid models.UID) error {
 
 	session.LastSeen = clock.Now()
 
-	opts := options.Update().SetUpsert(true)
-	_, err = s.db.Collection("sessions").UpdateOne(ctx, bson.M{"uid": session.UID}, bson.M{"$set": session}, opts)
-	if err != nil {
+	opts := options.Update().SetUpsert(false)
+	result, err := s.db.Collection("sessions").UpdateOne(ctx, bson.M{"uid": session.UID, "authenticated": true}, bson.M{"$set": session}, opts)
+	if err != nil || result.MatchedCount == 0 {
 		return fromMongoError(err)
 	}
-
 	activeSession := &models.ActiveSession{
 		UID:      uid,
 		LastSeen: clock.Now(),
