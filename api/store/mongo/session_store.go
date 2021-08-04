@@ -2,11 +2,14 @@ package mongo
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/shellhub-io/shellhub/api/apicontext"
 	"github.com/shellhub-io/shellhub/pkg/api/paginator"
 	"github.com/shellhub-io/shellhub/pkg/clock"
 	"github.com/shellhub-io/shellhub/pkg/models"
+	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -78,6 +81,8 @@ func (s *Store) SessionList(ctx context.Context, pagination paginator.Query) ([]
 }
 
 func (s *Store) SessionGet(ctx context.Context, uid models.UID) (*models.Session, error) {
+	var session *models.Session
+	//how put cache here?
 	query := []bson.M{
 		{
 			"$match": bson.M{"uid": uid},
@@ -106,8 +111,6 @@ func (s *Store) SessionGet(ctx context.Context, uid models.UID) (*models.Session
 		})
 	}
 
-	session := new(models.Session)
-
 	cursor, err := s.db.Collection("sessions").Aggregate(ctx, query)
 	if err != nil {
 		return nil, fromMongoError(err)
@@ -131,15 +134,30 @@ func (s *Store) SessionGet(ctx context.Context, uid models.UID) (*models.Session
 }
 
 func (s *Store) SessionSetAuthenticated(ctx context.Context, uid models.UID, authenticated bool) error {
-	_, err := s.db.Collection("sessions").UpdateOne(ctx, bson.M{"uid": uid}, bson.M{"$set": bson.M{"authenticated": authenticated}})
+	if _, err := s.db.Collection("sessions").UpdateOne(ctx, bson.M{"uid": uid}, bson.M{"$set": bson.M{"authenticated": authenticated}}); err != nil {
+		return fromMongoError(err)
 
-	return fromMongoError(err)
+	}
+
+	if err := s.cache.Delete(ctx, strings.Join([]string{"session", string(uid)}, "/")); err != nil {
+		logrus.Error(err)
+	}
+
+	return nil
 }
 
 func (s *Store) SessionSetRecorded(ctx context.Context, uid models.UID, recorded bool) error {
-	_, err := s.db.Collection("sessions").UpdateOne(ctx, bson.M{"uid": uid}, bson.M{"$set": bson.M{"recorded": recorded}})
+	if _, err := s.db.Collection("sessions").UpdateOne(ctx, bson.M{"uid": uid}, bson.M{"$set": bson.M{"recorded": recorded}}); err != nil {
+		return fromMongoError(err)
 
-	return fromMongoError(err)
+	}
+
+	if err := s.cache.Delete(ctx, strings.Join([]string{"session", string(uid)}, "/")); err != nil {
+		logrus.Error(err)
+	}
+
+	return nil
+
 }
 
 func (s *Store) SessionCreate(ctx context.Context, session models.Session) (*models.Session, error) {
@@ -158,6 +176,10 @@ func (s *Store) SessionCreate(ctx context.Context, session models.Session) (*mod
 		return nil, fromMongoError(err)
 	}
 
+	if err := s.cache.Set(ctx, strings.Join([]string{"session", session.UID}, "/"), session, time.Minute); err != nil {
+		logrus.Error(err)
+	}
+
 	as := &models.ActiveSession{
 		UID:      models.UID(session.UID),
 		LastSeen: session.StartedAt,
@@ -171,23 +193,32 @@ func (s *Store) SessionCreate(ctx context.Context, session models.Session) (*mod
 }
 
 func (s *Store) SessionSetLastSeen(ctx context.Context, uid models.UID) error {
-	session := models.Session{}
+	var session *models.Session
 
-	err := s.db.Collection("sessions").FindOne(ctx, bson.M{"uid": uid}).Decode(&session)
-	if err != nil {
-		return fromMongoError(err)
+	if err := s.cache.Get(ctx, strings.Join([]string{"session", string(uid)}, "/"), &session); err != nil {
+		logrus.Error(err)
+	}
+	if session == nil {
+
+		err := s.db.Collection("sessions").FindOne(ctx, bson.M{"uid": uid}).Decode(&session)
+		if err != nil {
+			return fromMongoError(err)
+		}
 	}
 
-	if session.Closed {
+	if session != nil && session.Closed {
 		return nil
 	}
 
 	session.LastSeen = clock.Now()
 
 	opts := options.Update().SetUpsert(true)
-	_, err = s.db.Collection("sessions").UpdateOne(ctx, bson.M{"uid": session.UID}, bson.M{"$set": session}, opts)
-	if err != nil {
+	if _, err := s.db.Collection("sessions").UpdateOne(ctx, bson.M{"uid": session.UID}, bson.M{"$set": session}, opts); err != nil {
 		return fromMongoError(err)
+	}
+
+	if err := s.cache.Delete(ctx, strings.Join([]string{"session", string(uid)}, "/")); err != nil {
+		logrus.Error(err)
 	}
 
 	activeSession := &models.ActiveSession{
@@ -203,7 +234,7 @@ func (s *Store) SessionSetLastSeen(ctx context.Context, uid models.UID) error {
 }
 
 func (s *Store) SessionDeleteActives(ctx context.Context, uid models.UID) error {
-	session := new(models.Session)
+	var session *models.Session
 	if err := s.db.Collection("sessions").FindOne(ctx, bson.M{"uid": uid}).Decode(&session); err != nil {
 		return fromMongoError(err)
 	}
@@ -215,6 +246,10 @@ func (s *Store) SessionDeleteActives(ctx context.Context, uid models.UID) error 
 	_, err := s.db.Collection("sessions").UpdateOne(ctx, bson.M{"uid": session.UID}, bson.M{"$set": session}, opts)
 	if err != nil {
 		return fromMongoError(err)
+	}
+
+	if err := s.cache.Delete(ctx, strings.Join([]string{"session", string(uid)}, "/")); err != nil {
+		logrus.Error(err)
 	}
 
 	_, err = s.db.Collection("active_sessions").DeleteMany(ctx, bson.M{"uid": session.UID})
@@ -237,6 +272,7 @@ func (s *Store) SessionCreateRecordFrame(ctx context.Context, uid models.UID, re
 func (s *Store) SessionUpdateDeviceUID(ctx context.Context, oldUID models.UID, newUID models.UID) error {
 	_, err := s.db.Collection("sessions").UpdateMany(ctx, bson.M{"device_uid": oldUID}, bson.M{"$set": bson.M{"device_uid": newUID}})
 
+	//how put cache here?
 	return fromMongoError(err)
 }
 

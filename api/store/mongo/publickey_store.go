@@ -2,16 +2,25 @@ package mongo
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/shellhub-io/shellhub/api/apicontext"
 	"github.com/shellhub-io/shellhub/pkg/api/paginator"
 	"github.com/shellhub-io/shellhub/pkg/models"
+	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 func (s *Store) PublicKeyGet(ctx context.Context, fingerprint, tenant string) (*models.PublicKey, error) {
-	pubKey := new(models.PublicKey)
+	var pubKey *models.PublicKey
 	if tenant != "" {
+		if err := s.cache.Get(ctx, strings.Join([]string{"key", fingerprint}, "/"), &pubKey); err != nil {
+			logrus.Error(err)
+		}
+		if pubKey != nil && pubKey.TenantID == tenant {
+			return pubKey, nil
+		}
 		if err := s.db.Collection("public_keys").FindOne(ctx, bson.M{"fingerprint": fingerprint, "tenant_id": tenant}).Decode(&pubKey); err != nil {
 			return nil, fromMongoError(err)
 		}
@@ -76,8 +85,15 @@ func (s *Store) PublicKeyCreate(ctx context.Context, key *models.PublicKey) erro
 	}
 
 	_, err := s.db.Collection("public_keys").InsertOne(ctx, key)
+	if err != nil {
+		return fromMongoError(err)
+	}
 
-	return fromMongoError(err)
+	if err := s.cache.Set(ctx, strings.Join([]string{"key", key.Fingerprint}, "/"), key, time.Minute); err != nil {
+		logrus.Error(err)
+	}
+
+	return nil
 }
 
 func (s *Store) PublicKeyUpdate(ctx context.Context, fingerprint, tenant string, key *models.PublicKeyUpdate) (*models.PublicKey, error) {
@@ -93,11 +109,21 @@ func (s *Store) PublicKeyUpdate(ctx context.Context, fingerprint, tenant string,
 		return nil, err
 	}
 
+	if err := s.cache.Delete(ctx, strings.Join([]string{"key", fingerprint}, "/")); err != nil {
+		logrus.Error(err)
+	}
+
 	return s.PublicKeyGet(ctx, fingerprint, tenant)
 }
 
 func (s *Store) PublicKeyDelete(ctx context.Context, fingerprint, tenant string) error {
-	_, err := s.db.Collection("public_keys").DeleteOne(ctx, bson.M{"fingerprint": fingerprint, "tenant_id": tenant})
+	if _, err := s.db.Collection("public_keys").DeleteOne(ctx, bson.M{"fingerprint": fingerprint, "tenant_id": tenant}); err != nil {
+		return fromMongoError(err)
+	}
 
-	return err
+	if err := s.cache.Delete(ctx, strings.Join([]string{"key", fingerprint}, "/")); err != nil {
+		logrus.Error(err)
+	}
+
+	return nil
 }
