@@ -103,7 +103,7 @@ func (dbs *DBServer) start() {
 	}
 
 	args := []string{
-		"run", "--rm", fmt.Sprintf("--net=%s", dbs.network), "mongo:4.4.8",
+		"run", "--rm", fmt.Sprintf("--net=%s", dbs.network), "mongo:5.0.2",
 		"--bind_ip", "127.0.0.1",
 		"--port", strconv.Itoa(addr.Port),
 		"--nojournal",
