@@ -7,6 +7,7 @@ import (
 	"github.com/shellhub-io/shellhub/api/apicontext"
 	"github.com/shellhub-io/shellhub/api/services"
 	"github.com/shellhub-io/shellhub/pkg/api/paginator"
+	e "github.com/shellhub-io/shellhub/pkg/errors"
 	"github.com/shellhub-io/shellhub/pkg/models"
 )
 
@@ -175,6 +176,10 @@ func (h *Handler) UpdatePendingStatus(c apicontext.Context) error {
 			return c.NoContent(http.StatusForbidden)
 		case services.ErrMaxDeviceCountReached:
 			return c.NoContent(http.StatusPaymentRequired)
+		case e.ErrLocked:
+			return c.NoContent(http.StatusLocked)
+		case e.ErrReport:
+			return c.NoContent(http.StatusBadRequest)
 		}
 
 		return err

@@ -1,15 +1,12 @@
 package requests
 
 import (
-	"errors"
-
+	e "github.com/shellhub-io/shellhub/pkg/errors"
 	"github.com/shellhub-io/shellhub/pkg/models"
 )
 
-var ErrReport = errors.New("report error")
-
 func HasBillingInstance(ns *models.Namespace) bool {
-	if ns == nil || ns.Billing == nil || !ns.Billing.Active || ns.MaxDevices != -1 {
+	if ns == nil || ns.Billing == nil {
 		return false
 	}
 
@@ -17,9 +14,16 @@ func HasBillingInstance(ns *models.Namespace) bool {
 }
 
 func HandleStatusResponse(status int) error {
-	if status == 200 || status == 402 || status == 400 {
+	switch status {
+	case 200:
 		return nil
+	case 402:
+		return nil
+	case 400:
+		return nil
+	case 423:
+		return e.ErrLocked
+	default:
+		return e.ErrReport
 	}
-
-	return ErrReport
 }
