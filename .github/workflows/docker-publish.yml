@@ -26,7 +26,7 @@ jobs:
       run: echo RELEASE_VERSION=$(echo ${GITHUB_REF:10}) >> $GITHUB_ENV
 
     - name: Build and publish '${{ matrix.project }}' to Docker Registry
-      uses: elgohr/Publish-Docker-Github-Action@master
+      uses: elgohr/Publish-Docker-Github-Action@v5
       with:
         name: shellhubio/${{ matrix.project }}
         username: ${{ secrets.DOCKER_USERNAME }}
